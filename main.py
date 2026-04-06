@@ -8,6 +8,7 @@ No GPIO. Preview only.
 
 from picamera2 import Picamera2
 from PIL import Image
+from collections import deque
 import sharpness_c
 import numpy as np
 import time, threading, socket, io, json, logging
@@ -23,11 +24,15 @@ logging.basicConfig(level=LOG_LEVEL, format="[%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
 # ── GLOBALS ────────────────────────────────────
-camera        = None
-jpeg_frame    = None
-frame_lock    = threading.Lock()
-sharpness_val = 0.0
-sharp_lock    = threading.Lock() # test
+camera         = None
+jpeg_frame     = None
+frame_lock     = threading.Lock()
+sharpness_val  = 0.0
+sharpness_pct  = 0.0
+sharp_lock     = threading.Lock()
+
+# rolling buffer of last 300 readings (~30 seconds at 10fps)
+_sharp_history = deque(maxlen=300)
 
 # ── SHARPNESS ──────────────────────────────────
 def compute_sharpness(frame):
@@ -35,9 +40,21 @@ def compute_sharpness(frame):
     h, w = rgb.shape[:2]
     return sharpness_c.compute_sharpness(bytes(rgb), w, h)
 
+def sharpness_to_pct(current):
+    _sharp_history.append(current)
+    if len(_sharp_history) < 10:
+        return 0.0
+    # average of top 10% of readings = "best focus" reference
+    sorted_vals = sorted(_sharp_history, reverse=True)
+    top_n = max(1, len(sorted_vals) // 10)
+    reference = sum(sorted_vals[:top_n]) / top_n
+    if reference == 0:
+        return 0.0
+    return min(100.0, (current / reference) * 100)
+
 # ── FRAME LOOP ─────────────────────────────────
 def frame_loop():
-    global jpeg_frame, sharpness_val
+    global jpeg_frame, sharpness_val, sharpness_pct
 
     log.info("Frame loop: warming up...")
     time.sleep(2)
@@ -51,8 +68,10 @@ def frame_loop():
 
             if frame_count % 3 == 0:
                 sharpness = compute_sharpness(frame)
+                pct = sharpness_to_pct(sharpness)
                 with sharp_lock:
                     sharpness_val = sharpness
+                    sharpness_pct = pct
 
             frame_count += 1
 
@@ -98,7 +117,7 @@ HTML = """<!DOCTYPE html>
             document.querySelector('img').src = '/frame.jpg?' + Date.now();
             fetch('/status')
                 .then(r => r.json())
-                .then(d => { document.getElementById('sharp').textContent = d.sharpness; })
+                .then(d => { document.getElementById('sharp').textContent = d.percent + '%'; })
                 .catch(() => {});
         }, 100);
     </script>
@@ -138,7 +157,8 @@ class Handler(BaseHTTPRequestHandler):
     def _status(self):
         with sharp_lock:
             s = sharpness_val
-        data = json.dumps({"sharpness": f"{s:.1f}"}).encode()
+            p = sharpness_pct
+        data = json.dumps({"sharpness": f"{s:.1f}", "percent": f"{p:.1f}"}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", len(data))

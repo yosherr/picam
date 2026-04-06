@@ -16,15 +16,13 @@ static PyObject* compute_sharpness(PyObject* self, PyObject* args) {
     for (int y = 1; y < height - 1; y++) {
         for (int x = 1; x < width - 1; x++) {
             int idx = (y * width + x) * 3;
-            float gray = data[idx] * 0.299f + data[idx + 1] * 0.587f +
-                         data[idx + 2] * 0.114f;
-
-            // Laplacian
             int top = ((y - 1) * width + x) * 3;
             int bot = ((y + 1) * width + x) * 3;
             int left = (y * width + (x - 1)) * 3;
             int right = (y * width + (x + 1)) * 3;
 
+            float gray = data[idx] * 0.299f + data[idx + 1] * 0.587f +
+                         data[idx + 2] * 0.114f;
             float tg = data[top] * 0.299f + data[top + 1] * 0.587f +
                        data[top + 2] * 0.114f;
             float bg = data[bot] * 0.299f + data[bot + 1] * 0.587f +
