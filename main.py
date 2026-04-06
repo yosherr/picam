@@ -104,20 +104,36 @@ HTML = """<!DOCTYPE html>
         }
         h1 { font-size:11px; letter-spacing:5px; color:#444; text-transform:uppercase; }
         img { width:640px; max-width:100%; border:1px solid #1a1a1a; background:#111; }
-        .stats { font-size:13px; color:#555; }
+        .stats {
+            display:flex; gap:40px; font-size:13px; color:#555;
+        }
+        .stat { display:flex; flex-direction:column; align-items:center; gap:4px; }
+        .label { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#444; }
         .val { color:#7ec87e; font-weight:bold; font-size:20px; }
     </style>
 </head>
 <body>
     <h1>&#9632; Pi HQ Camera &mdash; Live Preview</h1>
     <img src="/frame.jpg" alt="stream">
-    <div class="stats">Sharpness: <span class="val" id="sharp">loading...</span></div>
+    <div class="stats">
+        <div class="stat">
+            <span class="label">Sharpness</span>
+            <span class="val" id="sharp">loading...</span>
+        </div>
+        <div class="stat">
+            <span class="label">Focus %</span>
+            <span class="val" id="pct">loading...</span>
+        </div>
+    </div>
     <script>
         setInterval(function() {
             document.querySelector('img').src = '/frame.jpg?' + Date.now();
             fetch('/status')
                 .then(r => r.json())
-                .then(d => { document.getElementById('sharp').textContent = d.percent + '%'; })
+                .then(d => {
+                    document.getElementById('sharp').textContent = d.sharpness;
+                    document.getElementById('pct').textContent   = d.percent + '%';
+                })
                 .catch(() => {});
         }, 100);
     </script>
