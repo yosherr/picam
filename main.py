@@ -27,7 +27,7 @@ camera        = None
 jpeg_frame    = None
 frame_lock    = threading.Lock()
 sharpness_val = 0.0
-sharp_lock    = threading.Lock()
+sharp_lock    = threading.Lock() # test
 
 # ── SHARPNESS ──────────────────────────────────
 def compute_sharpness(frame):
